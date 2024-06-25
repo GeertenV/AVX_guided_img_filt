@@ -1,0 +1,94 @@
+#include <immintrin.h>
+#include <stdio.h>
+
+#define SIZE 22
+#define RADIUS 3
+
+void fill_image_data(float (*image)[SIZE]){
+    for(int y=0;y<SIZE;y++){
+        for(int x=0;x<SIZE;x++){
+           image[y][x] = (float)((float)y*SIZE)+(float)x;
+        }
+    }
+}
+
+void print_image_data(float (*image)[SIZE]){
+    for(int y=0;y<SIZE;y++){
+        for(int x=0;x<SIZE;x++){
+            printf("%f\t",image[y][x]);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+float vectorized_window_average(float (*image)[SIZE],int height, int width,int y_start, int x_start){
+    float sum = 0.0;
+    for(int j = 0; j < height; j++){
+        for(int i = 0; i < width; i++){
+            sum += image[y_start+j][x_start+i];
+        }
+    }
+    return sum/(height*width);
+
+// float sum = 0.0;
+// __m256 accumulator = _mm256_load_ps(image[y_start]);
+// for(int j = 1; j < height; j++){
+//     __m256 vector = _mm256_load_ps(image[y_start+j]);
+//     accumulator = _mm256_add_ps(vector, accumulator);
+// }
+// accumulator = _mm256_hadd_ps(accumulator, accumulator);
+// return sum/(height*width);
+
+// __m256 evens = _mm256_set_ps(2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0);
+// __m256 odds = _mm256_set_ps(11.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0);
+//
+// __m256 result = _mm256_sub_ps(evens, odds);
+}
+
+int main() {
+    int r = RADIUS;
+    float (*image)[SIZE] = aligned_alloc(32,sizeof(float[SIZE][SIZE]));
+    float (*output)[SIZE] = malloc(sizeof(float[SIZE][SIZE]));
+
+    fill_image_data(image);
+
+    print_image_data(image);
+
+    for(int y=0; y<SIZE; y++){
+        for(int x=0; x<SIZE; x++){
+            int h = 1+r;
+            int w = 1+r;
+            int y_start = y-r;
+            int x_start = x-r;
+
+            if(y<r){
+                h += y;
+                y_start = 0;
+            }
+            else if(y+r >= SIZE){
+                h += SIZE-1-y;
+            }
+            else{
+                h += r;
+            }
+
+            if(x<r){
+                w += x;
+                x_start = 0;
+            }
+            else if(x+r >= SIZE){
+                w += SIZE-1-x;
+            }
+            else{
+                w += r;
+            }
+
+            float average = vectorized_window_average(image,h,w,y_start,x_start);
+            output[y][x] = average;
+        }
+    }
+    print_image_data(output);
+
+    return 0;
+}
