@@ -22,7 +22,13 @@ void print_image_data(float (*image)[SIZE]){
     printf("\n");
 }
 
-float vectorized_window_average(float (*image)[SIZE],int height, int width,int y_start, int x_start){
+void print_m256(__m256 vector){
+    float* f = (float*)&vector;
+    printf("%f %f %f %f %f %f %f %f\n",
+    f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
+}
+
+float scalar_window_average(float (*image)[SIZE],int height, int width,int y_start, int x_start){
     float sum = 0.0;
     for(int j = 0; j < height; j++){
         for(int i = 0; i < width; i++){
@@ -30,30 +36,64 @@ float vectorized_window_average(float (*image)[SIZE],int height, int width,int y
         }
     }
     return sum/(height*width);
+}
 
-// float sum = 0.0;
-// __m256 accumulator = _mm256_load_ps(image[y_start]);
-// for(int j = 1; j < height; j++){
-//     __m256 vector = _mm256_load_ps(image[y_start+j]);
-//     accumulator = _mm256_add_ps(vector, accumulator);
-// }
-// accumulator = _mm256_hadd_ps(accumulator, accumulator);
-// return sum/(height*width);
+float vectorized_window_average(float (*image)[SIZE],int height, int width,int y_start, int x_start){
+    __m256i mask;
+    __m256i mask2 = _mm256_setr_epi32(-1, -1, -0, -0, -0, -0, -0, -0);
+    __m256i mask3 = _mm256_setr_epi32(-1, -1, -1, -0, -0, -0, -0, -0);
+    __m256i mask4 = _mm256_setr_epi32(-1, -1, -1, -1, -0, -0, -0, -0);
+    __m256i mask5 = _mm256_setr_epi32(-1, -1, -1, -1, -1, -0, -0, -0);
+    __m256i mask6 = _mm256_setr_epi32(-1, -1, -1, -1, -1, -1, -0, -0);
+    __m256i mask7 = _mm256_setr_epi32(-1, -1, -1, -1, -1, -1, -1, -0);
+    __m256i mask8 = _mm256_setr_epi32(-1, -1, -1, -1, -1, -1, -1, -1);
 
-// __m256 evens = _mm256_set_ps(2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0);
-// __m256 odds = _mm256_set_ps(11.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0);
-//
-// __m256 result = _mm256_sub_ps(evens, odds);
+    switch(width) {
+    case 2:
+        mask = mask2;
+        break;
+    case 3:
+        mask = mask3;
+        break;
+    case 4:
+        mask = mask4;
+        break;
+    case 5:
+        mask = mask5;
+        break;
+    case 6:
+        mask = mask6;
+        break;
+    case 7:
+        mask = mask7;
+        break;
+    case 8:
+        mask = mask8;
+        break;
+    }
+
+    __m256 accumulator = _mm256_maskload_ps(&image[y_start][x_start],mask);
+    for(int j = 1; j < height; j++){
+        __m256 vector = _mm256_maskload_ps(&image[y_start+j][x_start],mask);
+        accumulator = _mm256_add_ps(vector, accumulator);
+    }
+    accumulator = _mm256_hadd_ps(accumulator, accumulator);
+    accumulator = _mm256_hadd_ps(accumulator, accumulator);
+
+    float* f = (float*)&accumulator;
+    float sum = f[3] + f[4];
+    float avg = sum/(height*width);
+    return avg;
 }
 
 int main() {
     int r = RADIUS;
-    float (*image)[SIZE] = aligned_alloc(32,sizeof(float[SIZE][SIZE]));
+    float (*image)[SIZE] = malloc(sizeof(float[SIZE][SIZE]));
     float (*output)[SIZE] = malloc(sizeof(float[SIZE][SIZE]));
 
     fill_image_data(image);
 
-    print_image_data(image);
+    //print_image_data(image);
 
     for(int y=0; y<SIZE; y++){
         for(int x=0; x<SIZE; x++){
@@ -84,6 +124,7 @@ int main() {
                 w += r;
             }
 
+            //float average = scalar_window_average(image,h,w,y_start,x_start);
             float average = vectorized_window_average(image,h,w,y_start,x_start);
             output[y][x] = average;
         }
