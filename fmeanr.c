@@ -1,8 +1,9 @@
 #include <immintrin.h>
 #include <stdio.h>
 
-#define SIZE 22
-#define RADIUS 3
+#define SIZE 512
+#define RADIUS 8
+#define VLEN 8
 
 void fill_image_data(float (*image)[SIZE]){
     for(int y=0;y<SIZE;y++){
@@ -29,6 +30,7 @@ void print_m256(__m256 vector){
 }
 
 __m256i select_mask(int length){
+    __m256i mask1 = _mm256_setr_epi32(-1, -0, -0, -0, -0, -0, -0, -0);
     __m256i mask2 = _mm256_setr_epi32(-1, -1, -0, -0, -0, -0, -0, -0);
     __m256i mask3 = _mm256_setr_epi32(-1, -1, -1, -0, -0, -0, -0, -0);
     __m256i mask4 = _mm256_setr_epi32(-1, -1, -1, -1, -0, -0, -0, -0);
@@ -38,6 +40,8 @@ __m256i select_mask(int length){
     __m256i mask8 = _mm256_setr_epi32(-1, -1, -1, -1, -1, -1, -1, -1);
 
     switch(length) {
+    case 1:
+        return mask1;
     case 2:
         return mask2;
     case 3:
@@ -65,18 +69,22 @@ float scalar_window_sum(float (*image)[SIZE],int height, int width,int y_start, 
     return sum;
 }
 
-float vectorized_window_sum(float (*image)[SIZE],int height, __m256i mask,int y_start, int x_start){
+float vectorized_window_sum(float (*image)[SIZE],int height, int width,int y_start, int x_start){
+    float sum = 0.0;
+    for(int i = width; i > 0; i -= VLEN){
+        __m256i mask = select_mask(i);
+        __m256 accumulator = _mm256_maskload_ps(&image[y_start][x_start],mask);
+        for(int j = 1; j < height; j++){
+            __m256 vector = _mm256_maskload_ps(&image[y_start+j][x_start],mask);
+            accumulator = _mm256_add_ps(vector, accumulator);
+        }
+        accumulator = _mm256_hadd_ps(accumulator, accumulator);
+        accumulator = _mm256_hadd_ps(accumulator, accumulator);
 
-    __m256 accumulator = _mm256_maskload_ps(&image[y_start][x_start],mask);
-    for(int j = 1; j < height; j++){
-        __m256 vector = _mm256_maskload_ps(&image[y_start+j][x_start],mask);
-        accumulator = _mm256_add_ps(vector, accumulator);
+        float* f = (float*)&accumulator;
+        sum += f[3] + f[4];
+        x_start += VLEN;
     }
-    accumulator = _mm256_hadd_ps(accumulator, accumulator);
-    accumulator = _mm256_hadd_ps(accumulator, accumulator);
-
-    float* f = (float*)&accumulator;
-    float sum = f[3] + f[4];
     return sum;
 }
 
@@ -119,8 +127,8 @@ int main() {
             }
 
             //float sum = scalar_window_sum(image,h,w,y_start,x_start);
-            __m256i mask = select_mask(w);
-            float sum = vectorized_window_sum(image,h,mask,y_start,x_start);
+
+            float sum = vectorized_window_sum(image,h,w,y_start,x_start);
             float avg = sum/(h*w);
             output[y][x] = avg;
         }
