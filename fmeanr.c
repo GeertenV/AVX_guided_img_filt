@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 #define SIZE 512
-#define RADIUS 8
+#define RADIUS 3
 #define VLEN 8
 
 void fill_image_data(float (*image)[SIZE]){
@@ -16,7 +16,7 @@ void fill_image_data(float (*image)[SIZE]){
 void print_image_data(float (*image)[SIZE]){
     for(int y=0;y<SIZE;y++){
         for(int x=0;x<SIZE;x++){
-            printf("%f\t",image[y][x]);
+            printf("%.2f\t",image[y][x]);
         }
         printf("\n");
     }
@@ -133,7 +133,7 @@ int main() {
             output[y][x] = avg;
         }
     }
-    print_image_data(output);
+    //print_image_data(output);
 
     return 0;
 }
