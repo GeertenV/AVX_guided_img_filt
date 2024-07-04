@@ -1,8 +1,8 @@
 #include <immintrin.h>
 #include <stdio.h>
 
-#define SIZE 4096
-#define RADIUS 3
+#define SIZE 22
+#define RADIUS 2
 #define VLEN 8
 
 void fill_image_data(float (*image)[SIZE]){
@@ -87,7 +87,7 @@ void extract_output_sum(float (*output)[SIZE],float* accumulator, int x_start, i
         }
     }
 
-    for(int i = RADIUS; i < VLEN-RADIUS; i++){
+    for(int i = RADIUS; i < VLEN-RADIUS && i < SIZE-x_start-RADIUS; i++){
         float sum = 0.0;
         for(int j = i-RADIUS; j <= i+RADIUS; j++){
             sum += accumulator[j];
@@ -95,14 +95,38 @@ void extract_output_sum(float (*output)[SIZE],float* accumulator, int x_start, i
         output[y][i+x_start] = sum;
     }
 
-    if(x_start+VLEN == SIZE){
-        for(int i = VLEN-RADIUS; i < VLEN; i++){
+    if(x_start+VLEN >= SIZE){
+        for(int i = VLEN-RADIUS-(x_start+VLEN-SIZE); i < SIZE-x_start; i++){
             float sum = 0.0;
-            for(int j = i-RADIUS; j < VLEN; j++){
+            for(int j = i-RADIUS; j < SIZE-x_start; j++){
                 sum += accumulator[j];
             }
             output[y][i+x_start] = sum;
         }
+    }
+}
+
+void column_sum_masked(float (*image)[SIZE],float (*output)[SIZE], int x_start){
+    __m256i mask = select_mask((SIZE-x_start));
+    __m256 accumulator = _mm256_maskload_ps(&image[0][x_start],mask);
+    float* a = (float*)&accumulator;
+    for(int i = 1; i <= RADIUS; i++){
+        __m256 vector = _mm256_maskload_ps(&image[i][x_start],mask);
+        accumulator = _mm256_add_ps(vector, accumulator);
+    }
+
+    extract_output_sum(output,a,x_start,0);
+
+    for(int y = 1; y<SIZE; y++){
+        if(RADIUS+y < SIZE){
+            __m256 vector = _mm256_maskload_ps(&image[y+RADIUS][x_start],mask);
+            accumulator = _mm256_add_ps(vector, accumulator);
+        }
+        if(y > RADIUS){
+            __m256 vector = _mm256_maskload_ps(&image[y-RADIUS-1][x_start],mask);
+            accumulator = _mm256_sub_ps(accumulator, vector);
+        }
+        extract_output_sum(output,a,x_start,y);
     }
 }
 
@@ -138,12 +162,13 @@ int main() {
 
     //print_image_data(image);
 
-
-    for(int x=0; x<=SIZE-VLEN; x+=(VLEN-(2*RADIUS))){
+    int x=0;
+    for(x; x<=SIZE-VLEN; x+=(VLEN-(2*RADIUS))){
         column_sum(image,output,x);
     }
+    if(x>SIZE-VLEN)column_sum_masked(image,output,x);
     normalize(output);
-    //print_image_data(output);
+    print_image_data(output);
 
     return 0;
 }
