@@ -1,7 +1,7 @@
 #include <immintrin.h>
 #include <stdio.h>
 
-#define SIZE 512
+#define SIZE 4096
 #define RADIUS 3
 #define VLEN 8
 
