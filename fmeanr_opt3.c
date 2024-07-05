@@ -78,33 +78,27 @@ __m256i select_mask(int length){
 }
 
 void extract_output_sum(float (*output)[SIZE], float (*accumulators)[8], int x_start, int y){
+    int width = SIZE - x_start;
+    width = width < VLEN4 ? width:VLEN4;
+
+    float moving_sum = 0.0;
+    for(int i = 0; i <= RADIUS && i < width; i++){
+        moving_sum += accumulators[i/VLEN][i%VLEN];
+    }
+
     if(x_start == 0){
-        for(int i = 0; i < RADIUS; i++){
-            float sum = 0.0;
-            for(int j = 0; j <= i+RADIUS; j++){
-                sum += accumulators[j/VLEN][j%VLEN];
-            }
-            output[y][i+x_start] = sum;
-        }
-    }
+        output[y][0] = moving_sum;
+    } 
 
-    for(int i = RADIUS; i < VLEN4-RADIUS && i < SIZE-x_start-RADIUS; i++){
-        
-        float sum = 0.0;
-        for(int j = i-RADIUS; j <= i+RADIUS; j++){
-            sum += accumulators[j/VLEN][j%VLEN];
+    for(int i = 1; i < width-RADIUS || (width+x_start == SIZE && i < width) ; i++){
+        if(i+RADIUS < width ){
+            moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
         }
-        output[y][i+x_start] = sum;
-    }
-
-    if(x_start+VLEN4 >= SIZE){
-        for(int i = VLEN4-RADIUS-(x_start+VLEN4-SIZE); i < SIZE-x_start; i++){
-            float sum = 0.0;
-            for(int j = i-RADIUS; j < SIZE-x_start; j++){
-                sum += accumulators[j/VLEN][j%VLEN];
-            }
-            output[y][i+x_start] = sum;
+        if(i > RADIUS){
+            moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
         }
+        //printf("y = %d, x = %d, sum = %f\n",y,i+x_start,moving_sum);
+        if(i >= RADIUS || x_start == 0) output[y][i+x_start] = moving_sum;
     }
 }
 
