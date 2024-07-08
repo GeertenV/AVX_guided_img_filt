@@ -1,8 +1,9 @@
 #include <immintrin.h>
 #include <stdio.h>
+#include <sys/time.h>
 
 #define SIZE 4096
-#define RADIUS 12
+#define RADIUS 3
 #define VLEN 8
 #define VLEN5 40
 
@@ -105,7 +106,6 @@ void extract_output_sum(float (*output)[SIZE], float (*accumulators)[8], int x_s
 void column_sum_masked(float (*image)[SIZE],float (*output)[SIZE], int x_start){
     int width = SIZE - x_start;
     int complete_vectors = width/VLEN;
-    int total_vectors = (width+1)/VLEN;
     __m256i mask = select_mask(width%VLEN);
     __m256 accumulators[5];
 
@@ -224,16 +224,21 @@ int main() {
 
     fill_image_data(image);
 
-    //print_image_data(image);
+    struct timeval  tv1, tv2;
+    gettimeofday(&tv1, NULL);
+        int x=0;
+        while(x<=SIZE-VLEN5){
+            column_sum(image,output,x);
+            if(x==SIZE-VLEN5) x+=VLEN5;
+            else x+=(VLEN5-(2*RADIUS));
+        }
+        if(x<SIZE)column_sum_masked(image,output,x);
+        normalize(output);
+    gettimeofday(&tv2, NULL);
+    printf ("Total time = %f ms\n",
+            (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
+        (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
 
-    int x=0;
-    while(x<=SIZE-VLEN5){
-        column_sum(image,output,x);
-        if(x==SIZE-VLEN5) x+=VLEN5;
-        else x+=(VLEN5-(2*RADIUS));
-    }
-    if(x<SIZE)column_sum_masked(image,output,x);
-    normalize(output);
     //print_image_data(output);
 
     return 0;
