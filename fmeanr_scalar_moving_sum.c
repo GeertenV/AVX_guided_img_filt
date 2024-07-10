@@ -3,7 +3,7 @@
 #include <sys/time.h>
 
 #define SIZE 4096
-#define RADIUS 3
+#define RADIUS 10
 
 void fill_image_data(float (*image)[SIZE]){
     for(int y=0;y<SIZE;y++){
@@ -101,15 +101,17 @@ int main() {
     struct timeval  tv1, tv2;
 
     gettimeofday(&tv1, NULL);
+
         setup_col(image,temp);
         moving_sum_hor(image,temp);
         setup_row(temp,output);
         moving_sum_ver(temp,output);
         normalize(output);
+        
     gettimeofday(&tv2, NULL);
-    printf ("Total time = %f ms\n",
-            (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
-            (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+    printf ("normalize time = %f ms\n",
+        (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
+        (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
 
     //print_image_data(output);
 

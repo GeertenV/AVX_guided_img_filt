@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <immintrin.h>
 #include <sys/time.h>
+#include <omp.h>
 
 #define SIZE 1856
 #define RADIUS 10
@@ -15,6 +16,7 @@ void fill_image_data(float (*image)[SIZE]){
 }
 
 void normalize(float (*sum)[SIZE]){
+    #pragma omp parallel for
     for(int y=0;y<SIZE;y++){
         for(int x=0;x<SIZE;x++){
             int h = 1+RADIUS;
@@ -78,6 +80,7 @@ __m256i select_mask(int length){
 }
 
 void setup_col(float (*image)[SIZE], float (*temp)[SIZE]){
+    #pragma omp parallel for
     for(int y=0;y<SIZE;y++){
         float sum = 0.0;
         for(int x=0;x<=RADIUS;x++){
@@ -88,6 +91,7 @@ void setup_col(float (*image)[SIZE], float (*temp)[SIZE]){
 }
 
 void moving_sum_hor(float (*image)[SIZE], float (*temp)[SIZE]){
+    #pragma omp parallel for
     for(int y=0;y<SIZE;y++){
         for(int x=1;x<SIZE;x++){
             float sum = temp[y][x-1];
@@ -103,6 +107,7 @@ void moving_sum_hor(float (*image)[SIZE], float (*temp)[SIZE]){
 }
 
 void setup_row(float (*temp)[SIZE], float (*output)[SIZE]){
+    #pragma omp parallel for
     for(int x=0;x<SIZE;x++){
         float sum = 0.0;
         for(int y=0;y<=RADIUS;y++){
@@ -113,7 +118,23 @@ void setup_row(float (*temp)[SIZE], float (*output)[SIZE]){
 }
 
 void moving_sum_ver(float (*temp)[SIZE], float (*output)[SIZE]){
+    // for(int y=1;y<SIZE;y++){
+    //     #pragma omp parallel for
+    //     for(int x=0;x<SIZE;x++){
+    //         float sum = output[y-1][x];
+    //         if(RADIUS+y < SIZE){
+    //             sum += temp[y+RADIUS][x];
+    //         }
+    //         if(y>RADIUS){
+    //             sum -= temp[y-RADIUS-1][x];
+    //         }
+    //         output[y][x] = sum;
+    //     }
+    // }
+
     for(int y=1;y<SIZE;y++){
+        //#pragma omp parallel for
+        //this makes it slower for 1856x1856 and slightly faster for 4096x4096
         for(int x = 0;x<=SIZE-VLEN;x+=VLEN){
             __m256 sum = _mm256_loadu_ps(&output[y-1][x]);
             if(RADIUS+y < SIZE){
@@ -128,7 +149,8 @@ void moving_sum_ver(float (*temp)[SIZE], float (*output)[SIZE]){
         }
     }
 
-    // for(x;x<=SIZE-VLEN;x+=VLEN){
+    // #pragma omp parallel for
+    // for(int x = 0;x<=SIZE-VLEN;x+=VLEN){
     //     __m256 sum = _mm256_loadu_ps(&output[0][x]);
     //     for(int y=1;y<SIZE;y++){
     //         if(RADIUS+y < SIZE){
@@ -172,29 +194,29 @@ int main() {
 
     gettimeofday(&tv1, NULL);
         setup_col(image,temp);
-    gettimeofday(&tv2, NULL);
-    printf ("setup_col time = %f ms\n",
-        (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
-        (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
-    gettimeofday(&tv1, NULL);
+    // gettimeofday(&tv2, NULL);
+    // printf ("setup_col time = %f ms\n",
+    //     (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
+    //     (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+    // gettimeofday(&tv1, NULL);
         moving_sum_hor(image,temp);
-    gettimeofday(&tv2, NULL);
-    printf ("moving_sum_hor time = %f ms\n",
-        (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
-        (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
-    gettimeofday(&tv1, NULL);
+    // gettimeofday(&tv2, NULL);
+    // printf ("moving_sum_hor time = %f ms\n",
+    //     (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
+    //     (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+    // gettimeofday(&tv1, NULL);
         setup_row(temp,output);
-    gettimeofday(&tv2, NULL);
-    printf ("setup_row time = %f ms\n",
-        (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
-        (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
-    gettimeofday(&tv1, NULL);
+    // gettimeofday(&tv2, NULL);
+    // printf ("setup_row time = %f ms\n",
+    //     (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
+    //     (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+    // gettimeofday(&tv1, NULL);
         moving_sum_ver(temp,output);
-    gettimeofday(&tv2, NULL);
-    printf ("moving_sum_ver time = %f ms\n",
-        (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
-        (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
-    gettimeofday(&tv1, NULL);
+    // gettimeofday(&tv2, NULL);
+    // printf ("moving_sum_ver time = %f ms\n",
+    //     (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
+    //     (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+    // gettimeofday(&tv1, NULL);
         normalize(output);
     gettimeofday(&tv2, NULL);
     printf ("normalize time = %f ms\n",

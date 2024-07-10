@@ -1,8 +1,9 @@
 #include <immintrin.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <omp.h>
 
-#define SIZE 4096
+#define SIZE 1856
 #define RADIUS 10
 #define VLEN 8
 #define VLEN5 40
@@ -16,6 +17,7 @@ void fill_image_data(float (*image)[SIZE]){
 }
 
 void normalize(float (*sum)[SIZE]){
+    #pragma omp parallel for
     for(int y=0;y<SIZE;y++){
         for(int x=0;x<SIZE;x++){
             int h = 1+RADIUS;
@@ -78,7 +80,40 @@ __m256i select_mask(int length){
     }
 }
 
-void extract_output_sum(float (*output)[SIZE], float (*accumulators)[8], int x_start, int y){
+void extract_output_sum_left(float (*output)[SIZE], float (*accumulators)[8], int y){
+    float moving_sum = 0.0;
+    for(int i = 0; i <= RADIUS; i++){
+        moving_sum += accumulators[i/VLEN][i%VLEN];
+    }
+    output[y][0] = moving_sum;
+
+    for(int i = 1; i < VLEN5-RADIUS; i++){
+        moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
+        if(i > RADIUS){
+            moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
+        }
+        //printf("y = %d, x = %d, sum = %f\n",y,i+x_start,moving_sum);
+        output[y][i] = moving_sum;
+    }
+}
+
+void extract_output_sum_middle(float (*output)[SIZE], float (*accumulators)[8], int x_start, int y){
+    float moving_sum = 0.0;
+    for(int i = 0; i <= RADIUS; i++){
+        moving_sum += accumulators[i/VLEN][i%VLEN];
+    }
+
+    for(int i = 1; i < VLEN5-RADIUS; i++){
+        moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
+        if(i > RADIUS){
+            moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
+        }
+        //printf("y = %d, x = %d, sum = %f\n",y,i+x_start,moving_sum);
+        if(i >= RADIUS) output[y][i+x_start] = moving_sum;
+    }
+}
+
+void extract_output_sum_right(float (*output)[SIZE], float (*accumulators)[8], int x_start, int y){
     int width = SIZE - x_start;
     width = width < VLEN5 ? width:VLEN5;
 
@@ -87,11 +122,7 @@ void extract_output_sum(float (*output)[SIZE], float (*accumulators)[8], int x_s
         moving_sum += accumulators[i/VLEN][i%VLEN];
     }
 
-    if(x_start == 0){
-        output[y][0] = moving_sum;
-    } 
-
-    for(int i = 1; i < width-RADIUS || (width+x_start == SIZE && i < width) ; i++){
+    for(int i = 1; i < width ; i++){
         if(i+RADIUS < width ){
             moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
         }
@@ -99,13 +130,14 @@ void extract_output_sum(float (*output)[SIZE], float (*accumulators)[8], int x_s
             moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
         }
         //printf("y = %d, x = %d, sum = %f\n",y,i+x_start,moving_sum);
-        if(i >= RADIUS || x_start == 0) output[y][i+x_start] = moving_sum;
+        if(i >= RADIUS) output[y][i+x_start] = moving_sum;
     }
 }
 
 void column_sum_masked(float (*image)[SIZE],float (*output)[SIZE], int x_start){
     int width = SIZE - x_start;
     int complete_vectors = width/VLEN;
+
     __m256i mask = select_mask(width%VLEN);
     __m256 accumulators[5];
 
@@ -134,7 +166,7 @@ void column_sum_masked(float (*image)[SIZE],float (*output)[SIZE], int x_start){
 
     float (*float_accumulators)[8] = {a1,a2,a3,a4,a5};
 
-    extract_output_sum(output,float_accumulators,x_start,0);
+    extract_output_sum_right(output,float_accumulators,x_start,0);
 
     for(int y = 1; y<SIZE; y++){
         if(RADIUS+y < SIZE){
@@ -153,7 +185,7 @@ void column_sum_masked(float (*image)[SIZE],float (*output)[SIZE], int x_start){
             __m256 vector = _mm256_maskload_ps(&image[y-RADIUS-1][x_start+(complete_vectors*VLEN)],mask);
             accumulators[complete_vectors] = _mm256_sub_ps(accumulators[complete_vectors], vector);
         }
-        extract_output_sum(output,float_accumulators,x_start,y);
+        extract_output_sum_right(output,float_accumulators,x_start,y);
     }
 }
 
@@ -185,7 +217,9 @@ void column_sum(float (*image)[SIZE],float (*output)[SIZE], int x_start){
 
     float (*accumulators)[8] = {a1,a2,a3,a4,a5};
 
-    extract_output_sum(output,accumulators,x_start,0);
+    if(x_start == 0)extract_output_sum_left(output,accumulators,0);
+    else if(x_start+VLEN5 >= SIZE) extract_output_sum_right(output,accumulators,x_start,0);
+    else extract_output_sum_middle(output,accumulators,x_start,0);
 
     for(int y = 1; y<SIZE; y++){
         if(RADIUS+y < SIZE){
@@ -212,7 +246,9 @@ void column_sum(float (*image)[SIZE],float (*output)[SIZE], int x_start){
             accumulator4 = _mm256_sub_ps(accumulator4, vector4);
             accumulator5 = _mm256_sub_ps(accumulator5, vector5);
         }
-        extract_output_sum(output,accumulators,x_start,y);
+        if(x_start == 0)extract_output_sum_left(output,accumulators,y);
+        else if(x_start+VLEN5 >= SIZE) extract_output_sum_right(output,accumulators,x_start,y);
+        else extract_output_sum_middle(output,accumulators,x_start,y);
     }
 }
 
@@ -225,13 +261,15 @@ int main() {
 
     struct timeval  tv1, tv2;
     gettimeofday(&tv1, NULL);
-        int x=0;
-        while(x<=SIZE-VLEN5){
+        #pragma omp parallel for
+        for(int x=0; x <= SIZE-VLEN5; x+=VLEN5-(2*RADIUS)){
             column_sum(image,output,x);
-            if(x==SIZE-VLEN5) x+=VLEN5;
-            else x+=(VLEN5-(2*RADIUS));
         }
-        if(x<SIZE)column_sum_masked(image,output,x);
+        int remainder = (SIZE-2*(VLEN5-RADIUS))%((VLEN5-2*RADIUS));
+        if(remainder !=0){
+            int x= SIZE-2*RADIUS-remainder;
+            column_sum_masked(image,output,x);
+        }
         normalize(output);
     gettimeofday(&tv2, NULL);
     printf ("Total time = %f ms\n",
