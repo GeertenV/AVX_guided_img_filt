@@ -18,20 +18,56 @@ void fill_image_data(float (*image)[SIZE]){
 
 void normalize(float (*sum)[SIZE]){
     #pragma omp parallel for
-    for(int y=0;y<SIZE;y++){
-        for(int x=0;x<SIZE;x++){
-            int h = 1+RADIUS;
-            int w = 1+RADIUS;
-            if(y<RADIUS) h+=y;
-            else if(y+RADIUS>=SIZE) h+=SIZE-1-y;
-            else h+=RADIUS;
-            if(x<RADIUS) w+=x;
-            else if(x+RADIUS>=SIZE) w+=SIZE-1-x;
-            else w+=RADIUS;
+    for(int y=0;y<RADIUS;y++){
+        int h = 1+RADIUS+y;
+        int w;
+        for(int x=0;x<RADIUS;x++){
+            w = 1+RADIUS+x;
+            sum[y][x] = (float)sum[y][x]/(h*w);
+        }
+        w = 1+RADIUS+RADIUS;
+        for(int x=RADIUS;x<SIZE-RADIUS;x++){
+            sum[y][x] = (float)sum[y][x]/(h*w);
+        }
+        for(int x=SIZE-RADIUS;x<SIZE;x++){
+            w = 1+RADIUS+(SIZE-1-x);
             sum[y][x] = (float)sum[y][x]/(h*w);
         }
     }
-
+    int h = 1+RADIUS+RADIUS;  
+    #pragma omp parallel for
+    for(int y=RADIUS;y<SIZE-RADIUS;y++){ 
+        int w;
+        for(int x=0;x<RADIUS;x++){
+            w = 1+RADIUS+x;
+            sum[y][x] = (float)sum[y][x]/(h*w);
+        }
+        w = 1+RADIUS+RADIUS;
+        for(int x=RADIUS;x<SIZE-RADIUS;x++){
+            sum[y][x] = (float)sum[y][x]/(h*w);
+        }
+        for(int x=SIZE-RADIUS;x<SIZE;x++){
+            w = 1+RADIUS+(SIZE-1-x);
+            sum[y][x] = (float)sum[y][x]/(h*w);
+        }
+    }
+    #pragma omp parallel for
+    for(int y=SIZE-RADIUS;y<SIZE;y++){
+        h = 1+RADIUS+(SIZE-1-y);
+        int w;
+        for(int x=0;x<RADIUS;x++){
+            w = 1+RADIUS+x;
+            sum[y][x] = (float)sum[y][x]/(h*w);
+        }
+        w = 1+RADIUS+RADIUS;
+        for(int x=RADIUS;x<SIZE-RADIUS;x++){
+            sum[y][x] = (float)sum[y][x]/(h*w);
+        }
+        for(int x=SIZE-RADIUS;x<SIZE;x++){
+            w = 1+RADIUS+(SIZE-1-x);
+            sum[y][x] = (float)sum[y][x]/(h*w);
+        }
+    }
 }
 
 void print_image_data(float (*image)[SIZE]){
@@ -261,18 +297,30 @@ int main() {
 
     struct timeval  tv1, tv2;
     gettimeofday(&tv1, NULL);
+
         #pragma omp parallel for
         for(int x=0; x <= SIZE-VLEN5; x+=VLEN5-(2*RADIUS)){
             column_sum(image,output,x);
         }
+        gettimeofday(&tv2, NULL);
+        printf ("Column sum time = %f ms\n",
+            (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
+            (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+        gettimeofday(&tv1, NULL);
         int remainder = (SIZE-2*(VLEN5-RADIUS))%((VLEN5-2*RADIUS));
         if(remainder !=0){
             int x= SIZE-2*RADIUS-remainder;
             column_sum_masked(image,output,x);
         }
+        gettimeofday(&tv2, NULL);
+        printf ("Remainder Column sum time = %f ms\n",
+            (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
+            (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+        gettimeofday(&tv1, NULL);
         normalize(output);
+
     gettimeofday(&tv2, NULL);
-    printf ("Total time = %f ms\n",
+    printf ("normalize time = %f ms\n",
         (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
         (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
 
