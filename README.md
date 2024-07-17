@@ -12,3 +12,5 @@ nvcc -o fmeanr_cuda.exe fmeanr_cuda.cu
 (    module load devtoolset/9               )
 
 memusage -T ./fmeanr.exe
+
+mbw 2048
