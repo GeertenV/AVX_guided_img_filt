@@ -305,34 +305,43 @@ int main() {
 
     fill_image_data(image);
 
-    struct timeval  tv1, tv2;
+    struct timeval  tv1, tv2,tv3, tv4;
     gettimeofday(&tv1, NULL);
 
-        #pragma omp parallel for
-        for(int x=0; x <= SIZE-VLEN5; x+=VLEN5-(2*RADIUS)){
-            column_sum(image,output,x);
-        }
-        gettimeofday(&tv2, NULL);
-        printf ("Column sum time = %f ms\n",
-            (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
-            (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
-        gettimeofday(&tv1, NULL);
-        int remainder = (SIZE-2*(VLEN5-RADIUS))%((VLEN5-2*RADIUS));
-        if(remainder !=0){
-            int x= SIZE-2*RADIUS-remainder;
-            column_sum_masked(image,output,x);
-        }
-        gettimeofday(&tv2, NULL);
-        printf ("Remainder Column sum time = %f ms\n",
-            (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
-            (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
-        gettimeofday(&tv1, NULL);
-        normalize(output);
+    #pragma omp parallel for
+    for(int x=0; x <= SIZE-VLEN5; x+=VLEN5-(2*RADIUS)){
+        column_sum(image,output,x);
+    }
 
     gettimeofday(&tv2, NULL);
-    printf ("normalize time = %f ms\n",
+
+    int remainder = (SIZE-2*(VLEN5-RADIUS))%((VLEN5-2*RADIUS));
+    if(remainder !=0){
+        int x= SIZE-2*RADIUS-remainder;
+        column_sum_masked(image,output,x);
+    }
+
+    gettimeofday(&tv3, NULL);
+    
+    normalize(output);
+
+    gettimeofday(&tv4, NULL);
+
+    printf ("Column sum time = %f ms\n",
         (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
         (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+    
+    printf ("Remainder Column sum time = %f ms\n",
+        (double) (tv3.tv_usec - tv2.tv_usec) / 1000 +
+        (double) (tv3.tv_sec - tv2.tv_sec) * 1000);
+    
+    printf ("normalize time = %f ms\n",
+        (double) (tv4.tv_usec - tv3.tv_usec) / 1000 +
+        (double) (tv4.tv_sec - tv3.tv_sec) * 1000);
+    
+    printf ("Total time = %f ms\n",
+        (double) (tv4.tv_usec - tv1.tv_usec) / 1000 +
+        (double) (tv4.tv_sec - tv1.tv_sec) * 1000);
 
     //print_image_data(output);
 
