@@ -53,7 +53,7 @@ void normalize(float (*sum)[SIZE]){
     }
     #pragma omp parallel for
     for(int y=SIZE-RADIUS;y<SIZE;y++){
-        h = 1+RADIUS+(SIZE-1-y);
+        int h = 1+RADIUS+(SIZE-1-y);
         int w;
         for(int x=0;x<RADIUS;x++){
             w = 1+RADIUS+x;
