@@ -123,12 +123,13 @@ void extract_output_sum_left(float (*output)[SIZE], float (*accumulators)[8], in
     }
     output[y][0] = moving_sum;
 
-    for(int i = 1; i < VLEN5-RADIUS; i++){
+    for(int i = 1; i < RADIUS; i++){
         moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
-        if(i > RADIUS){
-            moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
-        }
-        //printf("y = %d, x = %d, sum = %f\n",y,i+x_start,moving_sum);
+        output[y][i] = moving_sum;
+    }
+    for(int i = RADIUS; i < VLEN5-RADIUS; i++){
+        moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
+        moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
         output[y][i] = moving_sum;
     }
 }
@@ -139,13 +140,15 @@ void extract_output_sum_middle(float (*output)[SIZE], float (*accumulators)[8], 
         moving_sum += accumulators[i/VLEN][i%VLEN];
     }
 
-    for(int i = 1; i < VLEN5-RADIUS; i++){
+    for(int i = 1; i < RADIUS; i++){
         moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
-        if(i > RADIUS){
-            moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
-        }
-        //printf("y = %d, x = %d, sum = %f\n",y,i+x_start,moving_sum);
-        if(i >= RADIUS) output[y][i+x_start] = moving_sum;
+    }
+    moving_sum += accumulators[(RADIUS+RADIUS)/VLEN][(RADIUS+RADIUS)%VLEN];
+    output[y][RADIUS+x_start] = moving_sum;
+    for(int i = RADIUS+1; i < VLEN5-RADIUS; i++){
+        moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
+        moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
+        output[y][i+x_start] = moving_sum;
     }
 }
 
@@ -158,15 +161,22 @@ void extract_output_sum_right(float (*output)[SIZE], float (*accumulators)[8], i
         moving_sum += accumulators[i/VLEN][i%VLEN];
     }
 
-    for(int i = 1; i < width ; i++){
-        if(i+RADIUS < width ){
-            moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
-        }
-        if(i > RADIUS){
-            moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
-        }
-        //printf("y = %d, x = %d, sum = %f\n",y,i+x_start,moving_sum);
-        if(i >= RADIUS) output[y][i+x_start] = moving_sum;
+    for(int i = 1; i < RADIUS && i < width-RADIUS ; i++){
+        moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
+    }
+
+    moving_sum += accumulators[(RADIUS+RADIUS)/VLEN][(RADIUS+RADIUS)%VLEN];
+    output[y][RADIUS+x_start] = moving_sum;
+
+    for(int i = RADIUS+1; i < width-RADIUS ; i++){
+        moving_sum += accumulators[(i+RADIUS)/VLEN][(i+RADIUS)%VLEN];
+        moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
+        output[y][i+x_start] = moving_sum;
+    }
+
+    for(int i = width-RADIUS; i < width ; i++){
+        moving_sum -= accumulators[(i-RADIUS-1)/VLEN][(i-RADIUS-1)%VLEN];
+        output[y][i+x_start] = moving_sum;
     }
 }
 
