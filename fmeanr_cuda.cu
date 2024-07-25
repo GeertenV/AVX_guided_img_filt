@@ -4,14 +4,14 @@
 #include <stdlib.h>
 #include <cuda.h>
 
-#define SIZE 1850
+#define SIZE 1856
 #define RADIUS 10
 #define VLEN 8
 #define VLEN5 40
 
 static void HandleError( cudaError_t err ) {
     if (err != cudaSuccess) {
-        printf( "henk: %s\n", cudaGetErrorString( err ));
+        printf( "Cuda Error: %s\n", cudaGetErrorString( err ));
         exit( EXIT_FAILURE );
     }
 }
@@ -107,17 +107,28 @@ int main() {
     int Nblocks = Ny;
     int Nthreads = Nx;
 
-    struct timeval  tv1, tv2;
+    struct timeval  tv1, tv2, tv3;
     gettimeofday(&tv1, NULL);
 
     fmeanr_gpu<<<Nblocks, Nthreads>>>(d_image, d_output, Nx, Ny, r);
     cudaDeviceSynchronize();
+
+    gettimeofday(&tv2, NULL);
+
     cudaMemcpy(output, d_output, Nx*Ny*sizeof(float), cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
-    gettimeofday(&tv2, NULL);
-    printf ("Total time = %f ms\n",
+
+    gettimeofday(&tv3, NULL);
+    
+    printf ("Run time = %f ms\n",
         (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
         (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
+    printf ("Copy time = %f ms\n",
+        (double) (tv3.tv_usec - tv2.tv_usec) / 1000 +
+        (double) (tv3.tv_sec - tv2.tv_sec) * 1000);
+    printf ("Total time = %f ms\n",
+        (double) (tv3.tv_usec - tv1.tv_usec) / 1000 +
+        (double) (tv3.tv_sec - tv1.tv_sec) * 1000);
 
     //print_image_data(output);
 

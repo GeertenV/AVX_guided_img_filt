@@ -2,7 +2,7 @@
 AVX compilation
 gcc -mavx -o fmeanr.exe fmeanr.c
 
-OpenMP + AVX compiltion
+OpenMP + AVX compilation
 gcc -fopenmp -mavx -o fmeanr_multi_vector_moving_sum.exe fmeanr_multi_vector_moving_sum.c
 
 Cuda compilation
