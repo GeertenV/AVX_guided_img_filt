@@ -86,7 +86,7 @@ __global__ void fmeanr_gpu(float *image,float *output, int Nx, int Ny, int threa
 
 int main() {
     cudaSetDevice(0);
-    int r = 7;
+    int r = 10;
     int Nx = 2268;
     int Ny = 1512;
     int threadblock_dim = 32;
