@@ -213,13 +213,15 @@ int main() {
         fclose(i_file);
         fclose(g_file);
 
-        struct timeval  tv1, tv2, tv3, tv4;
+        struct timeval  tv1, tv2, tv3, tv4, tv5;
         gettimeofday(&tv1, NULL);
 
         HandleError(cudaMemcpy(d_i, image, Nx*Ny*sizeof(float),cudaMemcpyHostToDevice));
         HandleError(cudaMemcpy(d_g, guide, Nx*Ny*sizeof(float),cudaMemcpyHostToDevice));
 
         cudaDeviceSynchronize();
+
+        gettimeofday(&tv2, NULL);
 
         point_multiply_gpu<<<Nblocks, Nthreads>>>(d_i, d_g, d_ig, Nx, Ny);
         point_multiply_gpu<<<Nblocks, Nthreads>>>(d_g, d_g, d_gg, Nx, Ny);
@@ -255,13 +257,13 @@ int main() {
 
         cudaDeviceSynchronize();
 
-        gettimeofday(&tv2, NULL);
+        gettimeofday(&tv3, NULL);
 
         cudaMemcpy(output, d_output, Nx*Ny*sizeof(int), cudaMemcpyDeviceToHost);
 
         cudaDeviceSynchronize();
 
-        gettimeofday(&tv3, NULL);
+        gettimeofday(&tv4, NULL);
 
         for(int y=0;y<Ny;y++){
             for(int x=0;x<Nx;x++){
@@ -271,20 +273,23 @@ int main() {
 
         fclose(out_file);
 
-        gettimeofday(&tv4, NULL);
+        gettimeofday(&tv5, NULL);
     
-        printf ("One channel kernel time = %f ms\n",
+        printf ("One channel copy to device = \t%f ms\n",
             (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
             (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
-        printf ("One channel copy time = %f ms\n",
+        printf ("One channel kernel time = \t%f ms\n",
             (double) (tv3.tv_usec - tv2.tv_usec) / 1000 +
             (double) (tv3.tv_sec - tv2.tv_sec) * 1000);
-        printf ("One channel write time = %f ms\n",
+        printf ("One channel copy to host = \t%f ms\n",
             (double) (tv4.tv_usec - tv3.tv_usec) / 1000 +
             (double) (tv4.tv_sec - tv3.tv_sec) * 1000);
-        printf ("One channel total time = %f ms\n\n",
-            (double) (tv4.tv_usec - tv1.tv_usec) / 1000 +
-            (double) (tv4.tv_sec - tv1.tv_sec) * 1000);
+        printf ("One channel write time = \t%f ms\n",
+            (double) (tv5.tv_usec - tv4.tv_usec) / 1000 +
+            (double) (tv5.tv_sec - tv4.tv_sec) * 1000);
+        printf ("One channel total time = \t%f ms\n\n",
+            (double) (tv5.tv_usec - tv1.tv_usec) / 1000 +
+            (double) (tv5.tv_sec - tv1.tv_sec) * 1000);
 
 
     }

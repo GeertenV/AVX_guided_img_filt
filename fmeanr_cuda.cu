@@ -4,11 +4,6 @@
 #include <stdlib.h>
 #include <cuda.h>
 
-#define SIZE 1856
-#define RADIUS 10
-#define VLEN 8
-#define VLEN5 40
-
 static void HandleError( cudaError_t err ) {
     if (err != cudaSuccess) {
         printf( "Cuda Error: %s\n", cudaGetErrorString( err ));
@@ -16,68 +11,68 @@ static void HandleError( cudaError_t err ) {
     }
 }
 
-void fill_image_data(float *image){
-    for(int y=0;y<SIZE;y++){
-        for(int x=0;x<SIZE;x++){
-           image[y*SIZE+x] = (float)((float)y*SIZE)+(float)x;
+void fill_image_data(float *image, int Nx, int Ny){
+    for(int y=0;y<Ny;y++){
+        for(int x=0;x<Nx;x++){
+           image[y*Nx+x] = (float)((float)y*Nx)+(float)x;
         }
     }
 }
 
-void print_image_data(float *image){
-    for(int y=0;y<SIZE;y++){
-        for(int x=0;x<SIZE;x++){
-            printf("%f\t\t",image[y*SIZE+x]);
+void print_image_data(float *image, int Nx, int Ny){
+    for(int y=0;y<Ny;y++){
+        for(int x=0;x<Nx;x++){
+            printf("%f\t\t",image[y*Nx+x]);
         }
         printf("\n");
     }
     printf("\n");
 }
 
-__global__ void fmeanr_gpu(float *image,float *output, int Nx, int Ny, int r)
+__global__ void fmeanr_gpu(float *image,float *output, int Nx, int Ny, int threadblock_dim, int x_blocks, int y_blocks, int r)
 {
-    //each block is assigned to a row of an image, iy index of y value                  
-    int iy = blockIdx.x;  
+    int block_x = blockIdx.x%x_blocks;
+    int block_y = blockIdx.x/x_blocks;  
 
-    //each thread is assigned to a pixel of a row, ix index of x value
-    int ix = threadIdx.x; 
+    int ix = block_x*threadblock_dim + threadIdx.x%threadblock_dim;
+    int iy = block_y*threadblock_dim + threadIdx.x/threadblock_dim;
 
-    //idx global index (all blocks) of the image pixel 
+    //idx global index
     int idx = iy*Nx +ix;                        
 
-    int window_h = 1+r;
-    int window_w = 1+r;
-    int y_start = iy-r;
-    int x_start = ix-r;
+    if (ix<Nx && iy<Ny){
 
-    if(iy<r){
-        window_h += iy;
-        y_start = 0;
-    }
-    else if(iy+r >= SIZE){
-        window_h += SIZE-1-iy;
-    }
-    else{
-        window_h += r;
-    }
+        int window_h = 1+r;
+        int window_w = 1+r;
+        int y_start = iy-r;
+        int x_start = ix-r;
 
-    if(ix<r){
-        window_w += ix;
-        x_start = 0;
-    }
-    else if(ix+r >= SIZE){
-        window_w += SIZE-1-ix;
-    }
-    else{
-        window_w += r;
-    }		
+        if(iy<r){
+            window_h += iy;
+            y_start = 0;
+        }
+        else if(iy+r >= Ny){
+            window_h += Ny-1-iy;
+        }
+        else{
+            window_h += r;
+        }
 
-    int ii, jj;
-    float sum = 0.0;
+        if(ix<r){
+            window_w += ix;
+            x_start = 0;
+        }
+        else if(ix+r >= Nx){
+            window_w += Nx-1-ix;
+        }
+        else{
+            window_w += r;
+        }		
 
-    __syncthreads();			  
+        int ii, jj;
+        float sum = 0.0;		  
 
-    if (idx<Nx*Ny){
+
         for (int ki = 0; ki<window_h; ki++){
             for (int kj = 0; kj<window_w; kj++){
                 ii = kj + x_start;
@@ -91,46 +86,52 @@ __global__ void fmeanr_gpu(float *image,float *output, int Nx, int Ny, int r)
 
 int main() {
     cudaSetDevice(0);
-    int r = RADIUS;
-    int Nx = SIZE;
-    int Ny = SIZE;
+    int r = 7;
+    int Nx = 2268;
+    int Ny = 1512;
+    int threadblock_dim = 32;
+    int x_blocks = (Nx+threadblock_dim-1)/threadblock_dim;
+    int y_blocks = (Ny+threadblock_dim-1)/threadblock_dim;
     float *image = (float*)malloc(Nx*Ny*sizeof(float));
     float *output = (float*)malloc(Nx*Ny*sizeof(float));
     float *d_image, *d_output;
     HandleError(cudaMalloc(&d_image,Nx*Ny*sizeof(float)));
     HandleError(cudaMalloc(&d_output,Nx*Ny*sizeof(float)));
 
-    fill_image_data(image);
+    fill_image_data(image, Nx, Ny);
 
-    HandleError(cudaMemcpy(d_image, image, Nx*Ny*sizeof(float),cudaMemcpyHostToDevice));
-
-    int Nblocks = Ny;
-    int Nthreads = Nx;
-
-    struct timeval  tv1, tv2, tv3;
+    struct timeval  tv1, tv2, tv3, tv4;
     gettimeofday(&tv1, NULL);
 
-    fmeanr_gpu<<<Nblocks, Nthreads>>>(d_image, d_output, Nx, Ny, r);
+    HandleError(cudaMemcpy(d_image, image, Nx*Ny*sizeof(float),cudaMemcpyHostToDevice));
     cudaDeviceSynchronize();
 
     gettimeofday(&tv2, NULL);
 
-    cudaMemcpy(output, d_output, Nx*Ny*sizeof(float), cudaMemcpyDeviceToHost);
+    fmeanr_gpu<<<x_blocks*y_blocks, threadblock_dim*threadblock_dim>>>(d_image, d_output, Nx, Ny, threadblock_dim, x_blocks, y_blocks, r);
     cudaDeviceSynchronize();
 
     gettimeofday(&tv3, NULL);
+
+    cudaMemcpy(output, d_output, Nx*Ny*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+
+    gettimeofday(&tv4, NULL);
     
-    printf ("Run time = %f ms\n",
+    printf ("Copy to device = %f ms\n",
         (double) (tv2.tv_usec - tv1.tv_usec) / 1000 +
         (double) (tv2.tv_sec - tv1.tv_sec) * 1000);
-    printf ("Copy time = %f ms\n",
+    printf ("Kernel time = %f ms\n",
         (double) (tv3.tv_usec - tv2.tv_usec) / 1000 +
         (double) (tv3.tv_sec - tv2.tv_sec) * 1000);
-    printf ("Total time = %f ms\n",
-        (double) (tv3.tv_usec - tv1.tv_usec) / 1000 +
-        (double) (tv3.tv_sec - tv1.tv_sec) * 1000);
+    printf ("Copy to host = %f ms\n",
+        (double) (tv4.tv_usec - tv3.tv_usec) / 1000 +
+        (double) (tv4.tv_sec - tv3.tv_sec) * 1000);
+    printf ("Total = %f ms\n",
+        (double) (tv4.tv_usec - tv1.tv_usec) / 1000 +
+        (double) (tv4.tv_sec - tv1.tv_sec) * 1000);
 
-    //print_image_data(output);
+    //print_image_data(output, Nx, Ny);
 
     free(image);
     free(output);
