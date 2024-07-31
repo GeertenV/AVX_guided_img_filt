@@ -74,7 +74,7 @@ int main()
   
   for (i=0; i<N_TESTS*8; i++)
     {
-      if (result[i] < 0 || result[i] > 1e7)
+      if (result[i] < 0 || result[i] > 1e9)
 	{
 
 	}

@@ -12,6 +12,67 @@
 #include "boxfilter.h"
 
 
+MU_TEST(test_boxfilter) {
+
+  int N = 128;
+
+  int R = 5;
+  
+  float *x_in = aligned_alloc(32, (N*N)*sizeof(float));
+  float *x_out = aligned_alloc(32, (N*N)*sizeof(float));
+  float *work = aligned_alloc(32, (N*(N+2))*sizeof(float));
+
+  int i;
+  
+  for (i=0; i<N*N; i++)
+    {
+      x_in[i] = (float) i;
+    }
+
+  boxfilter(x_in, x_out, R, N, N, work);
+  
+  
+  for (i=0; i<R; i++)
+    {
+      mu_assert_double_close(((N*R+R+i)/2.0), x_out[i], 1e-2);
+    }
+  for (i=R; i<N-R; i++)
+    {
+      mu_assert_double_close(((N*R)/2.0)+i, x_out[i], 1e-2);
+    }
+  for (i=N-R; i<N; i++)
+    {
+      mu_assert_double_close(((N*R+N+i-(R+1))/2.0), x_out[i], 1e-2);
+    }
+
+  for (i=N*(N/2); i<R+N*(N/2); i++)
+    {
+      mu_assert_double_close(i + (R-(i-(N*(N/2.0))))/2.0, x_out[i], 1e-2);
+    }
+  for (i=R+N*(N/2); i<N-R+N*(N/2); i++)
+    {
+      mu_assert_double_close(i, x_out[i], 1e-2);
+    }
+  for (i=N-R+N*(N/2); i<N+N*(N/2); i++)
+    {
+      mu_assert_double_close(i - (R - (N+N*(N/2)-1-i))/2.0, x_out[i], 1e-2);
+    }
+  
+  for (i=N*(N-1); i<R+N*(N-1); i++)
+    {
+      mu_assert_double_close(i - N*(R/2.0) + (R-(i-N*(N-1)))/2.0, x_out[i], 1e-2);
+    }
+  for (i=R+N*(N-1); i<N-R+N*(N-1); i++)
+    {
+      mu_assert_double_close(i - N*(R/2.0), x_out[i], 1e-2);
+    }
+  for (i=N-R+N*(N-1); i<N*N; i++)
+    {
+      mu_assert_double_close(i - N*(R/2.0) - (R - (N+N*(N-1)-1-i))/2.0, x_out[i], 1e-2);
+    }
+  
+}
+
 MU_TEST(test_boxfilter1D128) {
 
   int N = 128;
@@ -753,6 +814,7 @@ MU_TEST(test_matmul_40) {
 
 
 MU_TEST_SUITE(test_suite) {
+  MU_RUN_TEST(test_boxfilter);
   MU_RUN_TEST(test_boxfilter1D128);
   MU_RUN_TEST(test_boxfilter1D64);
   MU_RUN_TEST(test_boxfilter1D127);
